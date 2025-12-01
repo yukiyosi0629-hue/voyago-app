@@ -8,7 +8,6 @@ import datetime
 import time
 from geopy.geocoders import Nominatim
 import os
-import altair as alt # グラフ用に追加
 
 # ====================
 # 🛑 フォルダID
@@ -65,17 +64,29 @@ def get_services():
         'https://www.googleapis.com/auth/drive'
     ]
     
+    # 1. パソコン内のファイル（ローカル）
     if os.path.exists('secret.json'):
         creds = ServiceAccountCredentials.from_json_keyfile_name(
             'secret.json', scope
         )
+    # 2. クラウドの設定（TOML対応版）
     elif "gcp_service_account" in st.secrets:
-        key_dict = st.secrets["gcp_service_account"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(
-            key_dict, scope
-        )
+        try:
+            # Secretsを辞書としてそのまま読み込む
+            key_dict = dict(st.secrets["gcp_service_account"])
+            
+            # private_keyの改行コードを修正（念のため）
+            if "private_key" in key_dict:
+                key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
+
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(
+                key_dict, scope
+            )
+        except Exception as e:
+            st.error(f"認証エラー: {e}")
+            st.stop()
     else:
-        st.error("鍵ファイルが見つかりません")
+        st.error("鍵が見つかりません。")
         st.stop()
 
     gspread_client = gspread.authorize(creds)
@@ -146,8 +157,8 @@ with st.sidebar:
     filtered_spots = []
 
     if search_mode == "都道府県":
-        all_prefs = df_master["都道府県"].unique().tolist()
-        available_prefs = sorted(all_prefs)
+        p_list = df_master["都道府県"].unique().tolist()
+        available_prefs = sorted(p_list)
         
         if available_prefs:
             selected_pref = st.selectbox("県を選択", available_prefs)
@@ -157,8 +168,8 @@ with st.sidebar:
             st.warning("データなし")
 
     elif search_mode == "ジャンル":
-        all_genres = df_master["ジャンル"].unique().tolist()
-        available_genres = sorted(all_genres)
+        g_list = df_master["ジャンル"].unique().tolist()
+        available_genres = sorted(g_list)
         
         if available_genres:
             selected_genre = st.selectbox(
@@ -218,7 +229,7 @@ if len(filtered_spots) > 0:
         filtered_spots
     )
     
-    # 住所取得（タイムアウトを10秒に延長）
+    # 住所取得（タイムアウト延長）
     try:
         geolocator = Nominatim(
             user_agent="voyago_app",
@@ -228,16 +239,14 @@ if len(filtered_spots) > 0:
         if location:
             st.info(f"📍 住所: {location.address}")
         else:
-            st.caption("※ 住所が見つかりませんでした")
-    except Exception as e:
-        # エラー内容を表示して原因を探りやすくする
-        st.caption(f"※ 住所取得エラー: {e}")
+            st.caption("※ 住所不明")
+    except:
+        st.caption("※ 住所エラー")
     
     st.write("---")
 
     col_main, col_side = st.columns([2, 1])
 
-    # === 左側 ===
     with col_main:
         st.subheader(f"🖼️ {spot_name} のアルバム")
         
@@ -285,14 +294,14 @@ if len(filtered_spots) > 0:
                     st.success("完了！")
                     st.rerun()
 
-    # === 右側（グラフ修正） ===
     with col_side:
         st.subheader("📊 評価")
         mask_v = df_vote["観光地"] == spot_name
         current_data = df_vote[mask_v]
         
         if not current_data.empty:
-            # Altairを使って文字角度を0度（横書き）に固定
+            # Altairで横書き表示
+            import altair as alt
             c = alt.Chart(current_data).mark_bar().encode(
                 x=alt.X('特徴', axis=alt.Axis(labelAngle=0)),
                 y='投票数',
@@ -300,7 +309,7 @@ if len(filtered_spots) > 0:
             )
             st.altair_chart(c, use_container_width=True)
         else:
-            st.info("まだ投票がありません")
+            st.info("投票なし")
         
         st.write("👍 特徴に投票")
         
