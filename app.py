@@ -25,6 +25,19 @@ st.set_page_config(
     layout="wide"
 )
 
+# ★ここに追加！文字サイズを小さくする魔法（CSS）
+st.markdown(
+    """
+    <style>
+    /* エクスパンダー（開閉ボタン）の文字サイズを小さくする */
+    .streamlit-expanderHeader p {
+        font-size: 14px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # ====================
 # リスト定義
 # ====================
@@ -219,19 +232,18 @@ st.markdown(
 )
 st.markdown("##### みんなで作る観光マップ")
 
-# ★ここを修正（文字サイズを小さくしました）
-with st.expander("❓ VOYAGOについて"):
-    st.markdown(
-        """
-        <small style="color:gray;">
-        みんなの投票と写真で作る、新しい観光地マップです。<br>
-        <b>📝 タグ評価</b>： 特徴をボタンで投票<br>
-        <b>📸 アルバム</b>： リアルな写真を共有<br>
-        <b>🗺️ 登録</b>： 隠れた名所を自由に登録
-        </small>
-        """,
-        unsafe_allow_html=True
-    )
+# 「VOYAGOとは？」の表示
+with st.expander("❓ VOYAGOとは？"):
+    st.markdown("""
+    **「みんなでつくる、最高の旅のしおり。」**
+    
+    VOYAGOは、旅行者みんなのリアルな声で作り上げる、新しい観光地マップです。
+    
+    **👑 3つの特徴**
+    1. **📝 タグ評価**: 「デート向き」「コスパ良」などのボタンで投票。
+    2. **📸 アルバム**: 訪れた人が撮影したリアルな写真を共有。
+    3. **🗺️ 地図を広げる**: 隠れた名所を誰でも新しく登録できます。
+    """)
 
 st.write("---")
 
