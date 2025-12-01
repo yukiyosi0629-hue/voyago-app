@@ -8,6 +8,7 @@ import datetime
 import time
 from geopy.geocoders import Nominatim
 import os
+import urllib.parse
 
 # ====================
 # 🛑 フォルダID
@@ -72,13 +73,9 @@ def get_services():
     # 2. クラウドの設定（TOML対応版）
     elif "gcp_service_account" in st.secrets:
         try:
-            # Secretsを辞書としてそのまま読み込む
             key_dict = dict(st.secrets["gcp_service_account"])
-            
-            # private_keyの改行コードを修正（念のため）
             if "private_key" in key_dict:
                 key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
-
             creds = ServiceAccountCredentials.from_json_keyfile_dict(
                 key_dict, scope
             )
@@ -229,24 +226,43 @@ if len(filtered_spots) > 0:
         filtered_spots
     )
     
-    # 住所取得（タイムアウト延長）
+    # === Googleマップ連携 ===
+    # 住所取得エラー対策として、Googleマップ検索リンクを生成
+    encoded_name = urllib.parse.quote(spot_name)
+    google_map_url = f"https://www.google.com/maps/search/?api=1&query={encoded_name}"
+    
+    # リンクをボタンのように表示
+    st.markdown(
+        f"""
+        <a href="{google_map_url}" target="_blank" style="
+            display: inline-block;
+            background-color: #4285F4;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        ">📍 Googleマップで場所と住所を見る</a>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    # 念のためテキスト住所取得も試みる（エラーなら無視）
     try:
-        geolocator = Nominatim(
-            user_agent="voyago_app",
-            timeout=10
-        )
+        ua_str = f"voyago_{int(time.time())}" # ランダムなIDでブロック回避
+        geolocator = Nominatim(user_agent=ua_str, timeout=3)
         location = geolocator.geocode(spot_name)
         if location:
-            st.info(f"📍 住所: {location.address}")
-        else:
-            st.caption("※ 住所不明")
+            st.caption(f"住所目安: {location.address}")
     except:
-        st.caption("※ 住所エラー")
+        pass # エラーが出ても無視して画面を止めない
     
     st.write("---")
 
     col_main, col_side = st.columns([2, 1])
 
+    # === 左側 ===
     with col_main:
         st.subheader(f"🖼️ {spot_name} のアルバム")
         
@@ -294,14 +310,15 @@ if len(filtered_spots) > 0:
                     st.success("完了！")
                     st.rerun()
 
+    # === 右側 ===
     with col_side:
         st.subheader("📊 評価")
         mask_v = df_vote["観光地"] == spot_name
         current_data = df_vote[mask_v]
         
         if not current_data.empty:
-            # Altairで横書き表示
             import altair as alt
+            # 文字を横向き(0度)に固定
             c = alt.Chart(current_data).mark_bar().encode(
                 x=alt.X('特徴', axis=alt.Axis(labelAngle=0)),
                 y='投票数',
