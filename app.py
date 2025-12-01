@@ -9,7 +9,7 @@ import time
 from geopy.geocoders import Nominatim
 import os
 import altair as alt
-import urllib.parse  # ★これを追加しました！
+import urllib.parse
 
 # ====================
 # 🛑 フォルダID
@@ -66,17 +66,16 @@ def get_services():
         'https://www.googleapis.com/auth/drive'
     ]
     
-    # 1. パソコン内のファイル（ローカル）
     if os.path.exists('secret.json'):
         creds = ServiceAccountCredentials.from_json_keyfile_name(
             'secret.json', scope
         )
-    # 2. クラウドの設定（TOML対応版）
     elif "gcp_service_account" in st.secrets:
         try:
             key_dict = dict(st.secrets["gcp_service_account"])
             if "private_key" in key_dict:
-                key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
+                pk = key_dict["private_key"]
+                key_dict["private_key"] = pk.replace("\\n", "\n")
             creds = ServiceAccountCredentials.from_json_keyfile_dict(
                 key_dict, scope
             )
@@ -219,6 +218,20 @@ st.markdown(
     unsafe_allow_html=True
 )
 st.markdown("##### みんなで作る観光マップ")
+
+# ★ここに追加しました！
+with st.expander("❓ VOYAGOとは？"):
+    st.markdown("""
+    **「みんなでつくる、最高の旅のしおり。」**
+    
+    VOYAGOは、旅行者みんなのリアルな声で作り上げる、新しい観光地マップです。
+    
+    **👑 VOYAGOの3つの特徴**
+    1. **📝 タグ評価**: 「デート向き」「コスパ良」などのボタンで投票。場所の特徴がグラフでわかります。
+    2. **📸 みんなのアルバム**: 訪れた人が撮影したリアルな写真を共有できます。
+    3. **🗺️ 地図を広げる**: 隠れた名所を誰でもその場で新しく登録できます。
+    """)
+
 st.write("---")
 
 if len(filtered_spots) > 0:
@@ -227,7 +240,7 @@ if len(filtered_spots) > 0:
         filtered_spots
     )
     
-    # Googleマップリンク作成
+    # Googleマップ
     encoded_name = urllib.parse.quote(spot_name)
     gmap_url = f"https://www.google.com/maps/search/?api=1&query={encoded_name}"
     
