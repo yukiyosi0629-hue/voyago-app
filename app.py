@@ -9,6 +9,7 @@ import time
 from geopy.geocoders import Nominatim
 import os
 import altair as alt
+import urllib.parse  # ★これを追加しました！
 
 # ====================
 # 🛑 フォルダID
@@ -65,16 +66,17 @@ def get_services():
         'https://www.googleapis.com/auth/drive'
     ]
     
+    # 1. パソコン内のファイル（ローカル）
     if os.path.exists('secret.json'):
         creds = ServiceAccountCredentials.from_json_keyfile_name(
             'secret.json', scope
         )
+    # 2. クラウドの設定（TOML対応版）
     elif "gcp_service_account" in st.secrets:
         try:
             key_dict = dict(st.secrets["gcp_service_account"])
             if "private_key" in key_dict:
-                pk = key_dict["private_key"]
-                key_dict["private_key"] = pk.replace("\\n", "\n")
+                key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
             creds = ServiceAccountCredentials.from_json_keyfile_dict(
                 key_dict, scope
             )
@@ -245,7 +247,7 @@ if len(filtered_spots) > 0:
         unsafe_allow_html=True
     )
 
-    # 住所自動取得（エラーが出ても無視）
+    # 住所自動取得
     try:
         ua = f"voyago_{int(time.time())}"
         geolocator = Nominatim(user_agent=ua, timeout=5)
