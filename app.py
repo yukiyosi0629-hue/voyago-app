@@ -8,7 +8,7 @@ import datetime
 import time
 from geopy.geocoders import Nominatim
 import os
-import urllib.parse
+import altair as alt
 
 # ====================
 # 🛑 フォルダID
@@ -65,17 +65,16 @@ def get_services():
         'https://www.googleapis.com/auth/drive'
     ]
     
-    # 1. パソコン内のファイル（ローカル）
     if os.path.exists('secret.json'):
         creds = ServiceAccountCredentials.from_json_keyfile_name(
             'secret.json', scope
         )
-    # 2. クラウドの設定（TOML対応版）
     elif "gcp_service_account" in st.secrets:
         try:
             key_dict = dict(st.secrets["gcp_service_account"])
             if "private_key" in key_dict:
-                key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
+                pk = key_dict["private_key"]
+                key_dict["private_key"] = pk.replace("\\n", "\n")
             creds = ServiceAccountCredentials.from_json_keyfile_dict(
                 key_dict, scope
             )
@@ -226,15 +225,13 @@ if len(filtered_spots) > 0:
         filtered_spots
     )
     
-    # === Googleマップ連携 ===
-    # 住所取得エラー対策として、Googleマップ検索リンクを生成
+    # Googleマップリンク作成
     encoded_name = urllib.parse.quote(spot_name)
-    google_map_url = f"https://www.google.com/maps/search/?api=1&query={encoded_name}"
+    gmap_url = f"https://www.google.com/maps/search/?api=1&query={encoded_name}"
     
-    # リンクをボタンのように表示
     st.markdown(
         f"""
-        <a href="{google_map_url}" target="_blank" style="
+        <a href="{gmap_url}" target="_blank" style="
             display: inline-block;
             background-color: #4285F4;
             color: white;
@@ -243,20 +240,20 @@ if len(filtered_spots) > 0:
             border-radius: 4px;
             font-weight: bold;
             margin-bottom: 10px;
-        ">📍 Googleマップで場所と住所を見る</a>
+        ">📍 Googleマップで見る</a>
         """,
         unsafe_allow_html=True
     )
-    
-    # 念のためテキスト住所取得も試みる（エラーなら無視）
+
+    # 住所自動取得（エラーが出ても無視）
     try:
-        ua_str = f"voyago_{int(time.time())}" # ランダムなIDでブロック回避
-        geolocator = Nominatim(user_agent=ua_str, timeout=3)
+        ua = f"voyago_{int(time.time())}"
+        geolocator = Nominatim(user_agent=ua, timeout=5)
         location = geolocator.geocode(spot_name)
         if location:
             st.caption(f"住所目安: {location.address}")
     except:
-        pass # エラーが出ても無視して画面を止めない
+        pass
     
     st.write("---")
 
@@ -317,8 +314,6 @@ if len(filtered_spots) > 0:
         current_data = df_vote[mask_v]
         
         if not current_data.empty:
-            import altair as alt
-            # 文字を横向き(0度)に固定
             c = alt.Chart(current_data).mark_bar().encode(
                 x=alt.X('特徴', axis=alt.Axis(labelAngle=0)),
                 y='投票数',
