@@ -219,18 +219,19 @@ st.markdown(
 )
 st.markdown("##### みんなで作る観光マップ")
 
-# ★ここに追加しました！
-with st.expander("❓ VOYAGOとは？"):
-    st.markdown("""
-    **「みんなでつくる、最高の旅のしおり。」**
-    
-    VOYAGOは、旅行者みんなのリアルな声で作り上げる、新しい観光地マップです。
-    
-    **👑 VOYAGOの3つの特徴**
-    1. **📝 タグ評価**: 「デート向き」「コスパ良」などのボタンで投票。場所の特徴がグラフでわかります。
-    2. **📸 みんなのアルバム**: 訪れた人が撮影したリアルな写真を共有できます。
-    3. **🗺️ 地図を広げる**: 隠れた名所を誰でもその場で新しく登録できます。
-    """)
+# ★ここを修正（文字サイズを小さくしました）
+with st.expander("❓ VOYAGOについて"):
+    st.markdown(
+        """
+        <small style="color:gray;">
+        みんなの投票と写真で作る、新しい観光地マップです。<br>
+        <b>📝 タグ評価</b>： 特徴をボタンで投票<br>
+        <b>📸 アルバム</b>： リアルな写真を共有<br>
+        <b>🗺️ 登録</b>： 隠れた名所を自由に登録
+        </small>
+        """,
+        unsafe_allow_html=True
+    )
 
 st.write("---")
 
@@ -240,7 +241,6 @@ if len(filtered_spots) > 0:
         filtered_spots
     )
     
-    # Googleマップ
     encoded_name = urllib.parse.quote(spot_name)
     gmap_url = f"https://www.google.com/maps/search/?api=1&query={encoded_name}"
     
@@ -260,7 +260,6 @@ if len(filtered_spots) > 0:
         unsafe_allow_html=True
     )
 
-    # 住所自動取得
     try:
         ua = f"voyago_{int(time.time())}"
         geolocator = Nominatim(user_agent=ua, timeout=5)
@@ -274,7 +273,6 @@ if len(filtered_spots) > 0:
 
     col_main, col_side = st.columns([2, 1])
 
-    # === 左側 ===
     with col_main:
         st.subheader(f"🖼️ {spot_name} のアルバム")
         
@@ -322,7 +320,6 @@ if len(filtered_spots) > 0:
                     st.success("完了！")
                     st.rerun()
 
-    # === 右側 ===
     with col_side:
         st.subheader("📊 評価")
         mask_v = df_vote["観光地"] == spot_name
