@@ -56,7 +56,7 @@ TAGS = [
 ]
 
 # ====================
-# データベース接続
+# データベース接続（JSON対応版）
 # ====================
 @st.cache_resource
 def get_services():
@@ -65,26 +65,25 @@ def get_services():
         'https://www.googleapis.com/auth/drive'
     ]
     
-    # パソコンの場合
+    # 1. パソコン内のファイルがあるか確認
     if os.path.exists('secret.json'):
         creds = ServiceAccountCredentials.from_json_keyfile_name(
             'secret.json', scope
         )
-    # クラウドの場合
+    # 2. クラウドの設定を確認（ここが変わりました！）
     elif "gcp_service_account" in st.secrets:
         try:
-            # Secretsから文字列を取得
+            # 文字列として読み込んでからJSONに戻す
             json_str = st.secrets["gcp_service_account"]["json_content"]
-            # JSONとして読み込む
             key_dict = json.loads(json_str)
             creds = ServiceAccountCredentials.from_json_keyfile_dict(
                 key_dict, scope
             )
-        except Exception as e:
-            st.error(f"Secrets読み込みエラー: {e}")
+        except:
+            st.error("Secretsの設定が間違っています。手順を確認してください。")
             st.stop()
     else:
-        st.error("鍵が見つかりません。")
+        st.error("鍵ファイルが見つかりません！")
         st.stop()
 
     gspread_client = gspread.authorize(creds)
@@ -227,6 +226,7 @@ if len(filtered_spots) > 0:
         filtered_spots
     )
     
+    # 住所取得
     try:
         geolocator = Nominatim(user_agent="voyago_app")
         location = geolocator.geocode(spot_name)
