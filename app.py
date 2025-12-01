@@ -7,7 +7,7 @@ from googleapiclient.http import MediaIoBaseUpload
 import datetime
 import time
 from geopy.geocoders import Nominatim
-import json
+import os
 
 # ====================
 # 🛑 フォルダID
@@ -24,38 +24,48 @@ st.set_page_config(
 )
 
 # ====================
-# リスト定義
+# リスト定義（短く分割）
 # ====================
-PREFECTURES = [
+# 北海道・東北・関東
+LIST_1 = [
     "北海道", "青森県", "岩手県", "宮城県", "秋田県",
     "山形県", "福島県", "茨城県", "栃木県", "群馬県",
-    "埼玉県", "千葉県", "東京都", "神奈川県", "新潟県",
-    "富山県", "石川県", "福井県", "山梨県", "長野県",
-    "岐阜県", "静岡県", "愛知県", "三重県", "滋賀県",
-    "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県",
+    "埼玉県", "千葉県", "東京都", "神奈川県"
+]
+# 中部・近畿
+LIST_2 = [
+    "新潟県", "富山県", "石川県", "福井県", "山梨県",
+    "長野県", "岐阜県", "静岡県", "愛知県", "三重県",
+    "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県",
+    "和歌山県"
+]
+# 中国・四国・九州・沖縄
+LIST_3 = [
     "鳥取県", "島根県", "岡山県", "広島県", "山口県",
     "徳島県", "香川県", "愛媛県", "高知県", "福岡県",
     "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県",
     "鹿児島県", "沖縄県"
 ]
+# 全部合わせる
+PREFECTURES = LIST_1 + LIST_2 + LIST_3
 
 GENRES = [
-    "テーマパーク・遊園地", "動物園・水族館",
-    "神社・仏閣", "城・史跡", "美術館・博物館",
-    "公園・庭園", "山・高原・自然", "海・ビーチ・川",
-    "温泉・スパ", "展望台・タワー・夜景",
-    "ショッピング・アウトレット", "道の駅・サービスエリア",
-    "キャンプ・アウトドア", "グルメ・食べ歩き", "その他"
+    "テーマパーク", "動物園・水族館", "神社・仏閣",
+    "城・史跡", "美術館・博物館", "公園・庭園",
+    "山・高原", "海・ビーチ", "温泉・スパ",
+    "夜景・タワー", "買い物", "道の駅",
+    "キャンプ", "グルメ", "その他"
 ]
 
 TAGS = [
     "雨の日", "晴れの日", "デート", "子連れ",
     "静か", "賑やか", "コスパ良", "贅沢",
-    "アクセス良", "アクセス悪", "アクティブ"
+    "景色良", "アクセス良", "アクセス悪", "アクティブ",
+    "大人向け"
 ]
 
 # ====================
-# データベース接続（ここをクラウド対応にしました）
+# データベース接続（最強版）
 # ====================
 @st.cache_resource
 def get_services():
@@ -64,13 +74,21 @@ def get_services():
         'https://www.googleapis.com/auth/drive'
     ]
     
-    # 1. まずクラウド上の鍵(Secrets)を探す
-    if "gcp_service_account" in st.secrets:
+    # 1. まずパソコン内のファイルを探す（ローカル優先）
+    # これにより、パソコン実行時はst.secretsを見に行きません
+    if os.path.exists('secret.json'):
+        creds = ServiceAccountCredentials.from_json_keyfile_name(
+            'secret.json', scope
+        )
+    # 2. なければクラウドの設定を探す
+    elif "gcp_service_account" in st.secrets:
         key_dict = st.secrets["gcp_service_account"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
-    # 2. なければローカルのファイルを探す
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(
+            key_dict, scope
+        )
     else:
-        creds = ServiceAccountCredentials.from_json_keyfile_name('secret.json', scope)
+        st.error("鍵ファイル(secret.json)が見つかりません！")
+        st.stop()
 
     gspread_client = gspread.authorize(creds)
     sheet = gspread_client.open("travel_db")
@@ -84,13 +102,17 @@ try:
     try:
         photo_sheet = sheet_file.worksheet("photos")
     except:
-        photo_sheet = sheet_file.add_worksheet(title="photos", rows="100", cols="3")
+        photo_sheet = sheet_file.add_worksheet(
+            title="photos", rows="100", cols="3"
+        )
         photo_sheet.append_row(["観光地", "画像URL", "投稿日時"])
 
     try:
         master_sheet = sheet_file.worksheet("spots_master")
     except:
-        master_sheet = sheet_file.add_worksheet(title="spots_master", rows="100", cols="3")
+        master_sheet = sheet_file.add_worksheet(
+            title="spots_master", rows="100", cols="3"
+        )
         master_sheet.append_row(["観光地", "都道府県", "ジャンル"])
 
 except Exception as e:
@@ -136,8 +158,9 @@ with st.sidebar:
     filtered_spots = []
 
     if search_mode == "都道府県":
-        all_prefs = df_master["都道府県"].unique().tolist()
-        available_prefs = sorted(all_prefs)
+        # エラー防止のため一旦リスト化
+        p_list = df_master["都道府県"].unique().tolist()
+        available_prefs = sorted(p_list)
         
         if available_prefs:
             selected_pref = st.selectbox("県を選択", available_prefs)
@@ -147,11 +170,13 @@ with st.sidebar:
             st.warning("データなし")
 
     elif search_mode == "ジャンル":
-        all_genres = df_master["ジャンル"].unique().tolist()
-        available_genres = sorted(all_genres)
+        g_list = df_master["ジャンル"].unique().tolist()
+        available_genres = sorted(g_list)
         
         if available_genres:
-            selected_genre = st.selectbox("ジャンル選択", available_genres)
+            selected_genre = st.selectbox(
+                "ジャンル選択", available_genres
+            )
             mask = df_master["ジャンル"] == selected_genre
             filtered_spots = df_master[mask]["観光地"].tolist()
         else:
@@ -160,7 +185,9 @@ with st.sidebar:
     else:
         keyword = st.text_input("キーワード")
         if keyword:
-            mask = df_master["観光地"].str.contains(keyword, na=False)
+            mask = df_master["観光地"].str.contains(
+                keyword, na=False
+            )
             filtered_spots = df_master[mask]["観光地"].tolist()
 
     st.markdown("---")
@@ -211,9 +238,9 @@ if len(filtered_spots) > 0:
         if location:
             st.info(f"📍 住所: {location.address}")
         else:
-            st.caption("※ 住所が見つかりませんでした")
+            st.caption("※ 住所不明")
     except:
-        st.caption("※ 住所取得エラー")
+        st.caption("※ 住所エラー")
     
     st.write("---")
 
@@ -230,7 +257,9 @@ if len(filtered_spots) > 0:
             cols = st.columns(3)
             for i, url in enumerate(imgs):
                 with cols[i % 3]:
-                    st.image(url, use_container_width=True)
+                    st.image(
+                        url, use_container_width=True
+                    )
         else:
             st.info("写真なし")
 
@@ -313,7 +342,6 @@ else:
     )
     st.info(msg)
     
-    # 画像ファイルが無くてもエラーにならないように変更
     try:
         st.image("icon.png", width=100)
     except:
