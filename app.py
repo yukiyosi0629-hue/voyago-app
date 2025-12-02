@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from google.oauth2.service_account import Credentials # 新しい認証
+from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import datetime
@@ -23,21 +23,24 @@ PREFECTURES = ["北海道", "青森県", "岩手県", "宮城県", "秋田県", 
 GENRES = ["テーマパーク", "動物園・水族館", "神社・仏閣", "城・史跡", "美術館・博物館", "公園・庭園", "山・高原", "海・ビーチ", "温泉・スパ", "夜景・タワー", "買い物", "道の駅", "キャンプ", "グルメ", "その他"]
 TAGS = ["雨の日", "晴れの日", "アクセス良", "アクセス悪", "デート", "子連れ", "大人向け", "コスパ良", "贅沢", "景色良"]
 
-# DB接続（最新版）
+# DB接続
 @st.cache_resource
 def get_services():
-    scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     
-    # ローカル
+    # ローカルファイルがある場合
     if os.path.exists('secret.json'):
-        creds = Credentials.from_service_account_file('secret.json', scopes=scopes)
-    # クラウド
+        creds = ServiceAccountCredentials.from_json_keyfile_name('secret.json', scope)
+    # クラウドの場合
     elif "gcp_service_account" in st.secrets:
         try:
+            # 辞書として読み込む
             key_dict = dict(st.secrets["gcp_service_account"])
+            # 改行コードの修正
             if "private_key" in key_dict:
                 key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
-            creds = Credentials.from_service_account_info(key_dict, scopes=scopes)
+            
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
         except Exception as e:
             st.error(f"認証エラー: {e}")
             st.stop()
