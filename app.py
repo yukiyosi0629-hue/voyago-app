@@ -14,7 +14,7 @@ import urllib.parse
 # ====================
 # 🛑 フォルダID
 # ====================
-DRIVE_FOLDER_ID = "1Tv342SterGVXuOwiH-aKyO4tOW6OPjgp"
+DRIVE_FOLDER_ID = "1aOyupGCVBxKFx4G58LjfzTH4KwCesx7E"
 
 # ====================
 # 設定
@@ -62,16 +62,9 @@ GENRES = [
 ]
 
 TAGS = [
-    "雨の日",
-    "晴れの日",
-    "アクセス良",
-    "アクセス悪",
-    "デート",
-    "子連れ",
-    "大人向け",
-    "コスパ良",
-    "贅沢",
-    "景色良"
+    "雨の日", "晴れの日", "アクセス良", "アクセス悪",
+    "デート", "子連れ", "大人向け", "コスパ良",
+    "贅沢", "景色良"
 ]
 
 # ====================
@@ -258,14 +251,103 @@ if len(filtered_spots) > 0:
         filtered_spots
     )
     
-    # 画面分割（ここからスタート）
+    # 画面分割
     col_main, col_side = st.columns([2, 1])
 
-    # 1. まず地図用の場所を確保（中身は後で入れる）
+    # === 左側 ===
     with col_main:
-        map_container = st.empty()
+        encoded_name = urllib.parse.quote(spot_name)
+        gmap_url = f"https://www.google.com/maps/search/?api=1&query={encoded_name}"
+        
+        st.markdown(
+            f"""
+            <a href="{gmap_url}" target="_blank" style="
+                display: inline-block;
+                background-color: #4285F4;
+                color: white;
+                padding: 8px 16px;
+                text-decoration: none;
+                border-radius: 4px;
+                font-weight: bold;
+                margin-bottom: 10px;
+            ">📍 Googleマップで見る</a>
+            """,
+            unsafe_allow_html=True
+        )
 
-    # 2. 先に右側（評価）を表示！【高速化】
+        try:
+            ua = f"voyago_{int(time.time())}"
+            geolocator = Nominatim(user_agent=ua, timeout=5)
+            location = geolocator.geocode(spot_name)
+            if location:
+                st.caption(f"住所目安: {location.address}")
+        except:
+            pass
+        
+        st.write("---")
+
+        mask = df_photo["観光地"] == spot_name
+        imgs = df_photo[mask]["画像URL"].tolist()
+        
+        if imgs:
+            cols = st.columns(3)
+            for i, url in enumerate(imgs):
+                with cols[i % 3]:
+                    st.image(
+                        url, use_container_width=True
+                    )
+        else:
+            st.info("写真なし")
+
+        with st.expander("📸 写真を追加する"):
+            tab1, tab2 = st.tabs(["📁 アップロード", "🔗 URL貼り付け"])
+            
+            with tab1:
+                up_file = st.file_uploader(
+                    "画像選択", type=['png', 'jpg', 'jpeg']
+                )
+                if up_file and st.button("アップロード"):
+                    with st.spinner("送信中..."):
+                        fname = f"{spot_name}_{up_file.name}"
+                        meta = {
+                            'name': fname,
+                            'parents': [DRIVE_FOLDER_ID]
+                        }
+                        media = MediaIoBaseUpload(
+                            up_file, mimetype=up_file.type
+                        )
+                        f = drive_service.files().create(
+                            body=meta,
+                            media_body=media,
+                            fields='id, webContentLink'
+                        ).execute()
+                        
+                        now = datetime.datetime.now().strftime(
+                            '%Y-%m-%d %H:%M'
+                        )
+                        photo_sheet.append_row([
+                            spot_name,
+                            f.get('webContentLink'),
+                            now
+                        ])
+                        st.success("完了！")
+                        st.rerun()
+
+            with tab2:
+                img_url_input = st.text_input("URL入力")
+                if img_url_input and st.button("登録"):
+                    now = datetime.datetime.now().strftime(
+                        '%Y-%m-%d %H:%M'
+                    )
+                    photo_sheet.append_row([
+                        spot_name,
+                        img_url_input,
+                        now
+                    ])
+                    st.success("完了！")
+                    st.rerun()
+
+    # === 右側 ===
     with col_side:
         st.subheader("📊 評価")
         mask_v = df_vote["観光地"] == spot_name
@@ -312,99 +394,9 @@ if len(filtered_spots) > 0:
                     st.session_state.voted_history.append(v_key)
                     st.rerun()
 
-    # 3. 次に写真アルバムを表示
-    with col_main:
-        st.write("---") # 区切り線
-        
-        mask = df_photo["観光地"] == spot_name
-        imgs = df_photo[mask]["画像URL"].tolist()
-        
-        if imgs:
-            cols = st.columns(3)
-            for i, url in enumerate(imgs):
-                with cols[i % 3]:
-                    st.image(
-                        url, use_container_width=True
-                    )
-        else:
-            st.info("写真なし")
-
-        with st.expander("📸 写真を投稿"):
-            up_file = st.file_uploader(
-                "画像選択", type=['png', 'jpg', 'jpeg']
-            )
-            if up_file and st.button("アップロード"):
-                with st.spinner("送信中..."):
-                    fname = f"{spot_name}_{up_file.name}"
-                    meta = {
-                        'name': fname,
-                        'parents': [DRIVE_FOLDER_ID]
-                    }
-                    media = MediaIoBaseUpload(
-                        up_file, mimetype=up_file.type
-                    )
-                    f = drive_service.files().create(
-                        body=meta,
-                        media_body=media,
-                        fields='id, webContentLink'
-                    ).execute()
-                    
-                    now = datetime.datetime.now().strftime(
-                        '%Y-%m-%d %H:%M'
-                    )
-                    photo_sheet.append_row([
-                        spot_name,
-                        f.get('webContentLink'),
-                        now
-                    ])
-                    st.success("完了！")
-                    st.rerun()
-
-    # 4. 最後にゆっくり地図を表示（後回しにする）
-    encoded_name = urllib.parse.quote(spot_name)
-    gmap_url = f"https://www.google.com/maps/search/?api=1&query={encoded_name}"
-    
-    # 住所取得（遅延の原因）
-    address_text = ""
-    try:
-        ua = f"voyago_{int(time.time())}"
-        geolocator = Nominatim(user_agent=ua, timeout=5)
-        location = geolocator.geocode(spot_name)
-        if location:
-            address_text = f"📍 住所: {location.address}"
-    except:
-        pass
-
-    # さきほど確保した左上の場所に書き込む
-    with map_container:
-        st.markdown(
-            f"""
-            <a href="{gmap_url}" target="_blank" style="
-                display: inline-block;
-                background-color: #4285F4;
-                color: white;
-                padding: 8px 16px;
-                text-decoration: none;
-                border-radius: 4px;
-                font-weight: bold;
-                margin-bottom: 10px;
-            ">📍 Googleマップで見る</a>
-            <p style="color:gray; font-size:12px; margin-top:5px;">
-                {address_text}
-            </p>
-            """,
-            unsafe_allow_html=True
-        )
-
 else:
-    msg = (
-        "👈 左側のメニューから検索するか、"
-        "新規登録してください。"
-    )
-    # 診断用：ロボットのメールアドレスを表示
-st.error(f"⚠️ このアドレスを招待してください: {creds.service_account_email}")
-    st.info(msg)
-    
+    # ここが修正箇所です
+    st.info("👈 左側のメニューから検索するか、新規登録してください。")
     try:
         st.image("icon.png", width=100)
     except:
