@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials # 新しい認証
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import datetime
@@ -23,18 +23,21 @@ PREFECTURES = ["北海道", "青森県", "岩手県", "宮城県", "秋田県", 
 GENRES = ["テーマパーク", "動物園・水族館", "神社・仏閣", "城・史跡", "美術館・博物館", "公園・庭園", "山・高原", "海・ビーチ", "温泉・スパ", "夜景・タワー", "買い物", "道の駅", "キャンプ", "グルメ", "その他"]
 TAGS = ["雨の日", "晴れの日", "アクセス良", "アクセス悪", "デート", "子連れ", "大人向け", "コスパ良", "贅沢", "景色良"]
 
-# DB接続
+# DB接続（最新版）
 @st.cache_resource
 def get_services():
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+    
+    # ローカル
     if os.path.exists('secret.json'):
-        creds = ServiceAccountCredentials.from_json_keyfile_name('secret.json', scope)
+        creds = Credentials.from_service_account_file('secret.json', scopes=scopes)
+    # クラウド
     elif "gcp_service_account" in st.secrets:
         try:
             key_dict = dict(st.secrets["gcp_service_account"])
             if "private_key" in key_dict:
                 key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
+            creds = Credentials.from_service_account_info(key_dict, scopes=scopes)
         except Exception as e:
             st.error(f"認証エラー: {e}")
             st.stop()
@@ -136,8 +139,7 @@ with st.expander("❓ VOYAGOについて"):
 
 st.write("---")
 
-# ガード節：データがない場合はここで終了
-if not filtered_spots:
+if len(filtered_spots) == 0:
     st.info("👈 左側のメニューから検索するか、新規登録してください。")
     try:
         st.image("icon.png", width=100)
@@ -145,7 +147,6 @@ if not filtered_spots:
         pass
     st.stop()
 
-# データがある場合の処理
 spot_name = st.selectbox("📍 観光地を選択してください", filtered_spots)
 enc_name = urllib.parse.quote(spot_name)
 gmap_url = f"https://www.google.com/maps/search/?api=1&query={enc_name}"
@@ -160,7 +161,7 @@ with col1:
     
     try:
         ua = f"voyago_{int(time.time())}"
-        geolocator = Nominatim(user_agent=ua, timeout=5)
+        geolocator = Nominatim(user_agent=ua, timeout=10)
         loc = geolocator.geocode(spot_name)
         if loc:
             st.caption(f"住所目安: {loc.address}")
