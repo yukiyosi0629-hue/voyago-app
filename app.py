@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import datetime
@@ -26,21 +26,19 @@ TAGS = ["雨の日", "晴れの日", "アクセス良", "アクセス悪", "デ�
 # DB接続
 @st.cache_resource
 def get_services():
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    scopes = [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive'
+    ]
     
-    # ローカルファイルがある場合
     if os.path.exists('secret.json'):
-        creds = ServiceAccountCredentials.from_json_keyfile_name('secret.json', scope)
-    # クラウドの場合
+        creds = Credentials.from_service_account_file('secret.json', scopes=scopes)
     elif "gcp_service_account" in st.secrets:
         try:
-            # 辞書として読み込む
             key_dict = dict(st.secrets["gcp_service_account"])
-            # 改行コードの修正
             if "private_key" in key_dict:
                 key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
-            
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
+            creds = Credentials.from_service_account_info(key_dict, scopes=scopes)
         except Exception as e:
             st.error(f"認証エラー: {e}")
             st.stop()
@@ -67,7 +65,8 @@ try:
         master_sheet = sheet_file.add_worksheet(title="spots_master", rows="100", cols="3")
         master_sheet.append_row(["観光地", "都道府県", "ジャンル"])
 except Exception as e:
-    st.error(f"接続エラー: {e}")
+    # エラーの詳細を画面に出すように変更
+    st.error(f"詳細エラー: {e}")
     st.stop()
 
 # データ読込
@@ -83,13 +82,14 @@ df_photo = pd.DataFrame(photo_records) if photo_records else pd.DataFrame(column
 # サイドバー
 with st.sidebar:
     st.title("🔍 VOYAGO Menu")
+    st.caption("▼ 観光地を探す")
     search_mode = st.radio("モード", ["都道府県", "ジャンル", "キーワード"])
     filtered_spots = []
     
     if search_mode == "都道府県":
         p_list = sorted(df_master["都道府県"].unique().tolist())
         if p_list:
-            selected_pref = st.selectbox("県", p_list)
+            selected_pref = st.selectbox("県を選択", p_list)
             mask = df_master["都道府県"] == selected_pref
             filtered_spots = df_master[mask]["観光地"].tolist()
         else:
@@ -97,7 +97,7 @@ with st.sidebar:
     elif search_mode == "ジャンル":
         g_list = sorted(df_master["ジャンル"].unique().tolist())
         if g_list:
-            selected_genre = st.selectbox("ジャンル", g_list)
+            selected_genre = st.selectbox("ジャンル選択", g_list)
             mask = df_master["ジャンル"] == selected_genre
             filtered_spots = df_master[mask]["観光地"].tolist()
         else:
@@ -109,6 +109,7 @@ with st.sidebar:
             filtered_spots = df_master[mask]["観光地"].tolist()
             
     st.markdown("---")
+    st.caption("▼ 場所を追加")
     with st.expander("➕ 登録フォーム"):
         with st.form("reg"):
             n_name = st.text_input("名前")
@@ -132,13 +133,13 @@ st.markdown("##### みんなで作る観光マップ")
 
 with st.expander("❓ VOYAGOについて"):
     st.markdown("""
-    **「みんなでつくる、最高の旅のしおり。」**
-    VOYAGOは、旅行者みんなのリアルな声で作り上げる、新しい観光地マップです。
-    **👑 3つの特徴**
-    1. **📝 タグ評価**: 「デート向き」「コスパ良」などのボタンで投票。
-    2. **📸 アルバム**: 訪れた人が撮影したリアルな写真を共有。
-    3. **🗺️ 地図を広げる**: 隠れた名所を誰でも新しく登録できます。
-    """)
+    <small style="color:gray;">
+    みんなの投票と写真で作る、新しい観光地マップです。<br>
+    <b>📝 タグ評価</b>： 特徴をボタンで投票<br>
+    <b>📸 アルバム</b>： リアルな写真を共有<br>
+    <b>🗺️ 登録</b>： 隠れた名所を自由に登録
+    </small>
+    """, unsafe_allow_html=True)
 
 st.write("---")
 
