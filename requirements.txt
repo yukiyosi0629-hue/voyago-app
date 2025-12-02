@@ -1,7 +1,7 @@
 streamlit
 pandas
-gspread==5.10.0
-oauth2client
+gspread==6.0.0
+google-auth
 google-api-python-client
 geopy
 altair
