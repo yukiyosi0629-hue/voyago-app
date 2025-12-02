@@ -62,10 +62,16 @@ GENRES = [
 ]
 
 TAGS = [
-    "雨の日", "晴れの日", "デート", "子連れ",
-    "静か", "賑やか", "コスパ良", "贅沢",
-    "景色良", "アクセス良", "アクセス悪", "アクティブ",
-    "大人向け"
+    "雨の日",
+    "晴れの日",
+    "アクセス良",
+    "アクセス悪",
+    "デート",
+    "子連れ",
+    "大人向け",
+    "コスパ良",
+    "贅沢",
+    "景色良"
 ]
 
 # ====================
@@ -252,90 +258,15 @@ if len(filtered_spots) > 0:
         filtered_spots
     )
     
-    # ここで画面分割（これより上に何も置かない）
+    # 画面分割（ここからスタート）
     col_main, col_side = st.columns([2, 1])
 
-    # === 左側（マップ・住所・写真） ===
+    # 1. まず地図用の場所を確保（中身は後で入れる）
     with col_main:
-        # マップと住所をここに移動！
-        encoded_name = urllib.parse.quote(spot_name)
-        gmap_url = f"https://www.google.com/maps/search/?api=1&query={encoded_name}"
-        
-        st.markdown(
-            f"""
-            <a href="{gmap_url}" target="_blank" style="
-                display: inline-block;
-                background-color: #4285F4;
-                color: white;
-                padding: 8px 16px;
-                text-decoration: none;
-                border-radius: 4px;
-                font-weight: bold;
-                margin-bottom: 10px;
-            ">📍 Googleマップで見る</a>
-            """,
-            unsafe_allow_html=True
-        )
+        map_container = st.empty()
 
-        try:
-            ua = f"voyago_{int(time.time())}"
-            geolocator = Nominatim(user_agent=ua, timeout=5)
-            location = geolocator.geocode(spot_name)
-            if location:
-                st.caption(f"住所目安: {location.address}")
-        except:
-            pass
-        
-        st.write("---") # 区切り線
-
-        # アルバム部分
-        mask = df_photo["観光地"] == spot_name
-        imgs = df_photo[mask]["画像URL"].tolist()
-        
-        if imgs:
-            cols = st.columns(3)
-            for i, url in enumerate(imgs):
-                with cols[i % 3]:
-                    st.image(
-                        url, use_container_width=True
-                    )
-        else:
-            st.info("写真なし")
-
-        with st.expander("📸 写真を投稿"):
-            up_file = st.file_uploader(
-                "画像選択", type=['png', 'jpg', 'jpeg']
-            )
-            if up_file and st.button("アップロード"):
-                with st.spinner("送信中..."):
-                    fname = f"{spot_name}_{up_file.name}"
-                    meta = {
-                        'name': fname,
-                        'parents': [DRIVE_FOLDER_ID]
-                    }
-                    media = MediaIoBaseUpload(
-                        up_file, mimetype=up_file.type
-                    )
-                    f = drive_service.files().create(
-                        body=meta,
-                        media_body=media,
-                        fields='id, webContentLink'
-                    ).execute()
-                    
-                    now = datetime.datetime.now().strftime(
-                        '%Y-%m-%d %H:%M'
-                    )
-                    photo_sheet.append_row([
-                        spot_name,
-                        f.get('webContentLink'),
-                        now
-                    ])
-                    st.success("完了！")
-                    st.rerun()
-
-    # === 右側（グラフ・評価） ===
+    # 2. 先に右側（評価）を表示！【高速化】
     with col_side:
-        # マップが左に行ったので、ここが一番上から始まります
         st.subheader("📊 評価")
         mask_v = df_vote["観光地"] == spot_name
         current_data = df_vote[mask_v]
@@ -380,6 +311,90 @@ if len(filtered_spots) > 0:
                     
                     st.session_state.voted_history.append(v_key)
                     st.rerun()
+
+    # 3. 次に写真アルバムを表示
+    with col_main:
+        st.write("---") # 区切り線
+        
+        mask = df_photo["観光地"] == spot_name
+        imgs = df_photo[mask]["画像URL"].tolist()
+        
+        if imgs:
+            cols = st.columns(3)
+            for i, url in enumerate(imgs):
+                with cols[i % 3]:
+                    st.image(
+                        url, use_container_width=True
+                    )
+        else:
+            st.info("写真なし")
+
+        with st.expander("📸 写真を投稿"):
+            up_file = st.file_uploader(
+                "画像選択", type=['png', 'jpg', 'jpeg']
+            )
+            if up_file and st.button("アップロード"):
+                with st.spinner("送信中..."):
+                    fname = f"{spot_name}_{up_file.name}"
+                    meta = {
+                        'name': fname,
+                        'parents': [DRIVE_FOLDER_ID]
+                    }
+                    media = MediaIoBaseUpload(
+                        up_file, mimetype=up_file.type
+                    )
+                    f = drive_service.files().create(
+                        body=meta,
+                        media_body=media,
+                        fields='id, webContentLink'
+                    ).execute()
+                    
+                    now = datetime.datetime.now().strftime(
+                        '%Y-%m-%d %H:%M'
+                    )
+                    photo_sheet.append_row([
+                        spot_name,
+                        f.get('webContentLink'),
+                        now
+                    ])
+                    st.success("完了！")
+                    st.rerun()
+
+    # 4. 最後にゆっくり地図を表示（後回しにする）
+    encoded_name = urllib.parse.quote(spot_name)
+    gmap_url = f"https://www.google.com/maps/search/?api=1&query={encoded_name}"
+    
+    # 住所取得（遅延の原因）
+    address_text = ""
+    try:
+        ua = f"voyago_{int(time.time())}"
+        geolocator = Nominatim(user_agent=ua, timeout=5)
+        location = geolocator.geocode(spot_name)
+        if location:
+            address_text = f"📍 住所: {location.address}"
+    except:
+        pass
+
+    # さきほど確保した左上の場所に書き込む
+    with map_container:
+        st.markdown(
+            f"""
+            <a href="{gmap_url}" target="_blank" style="
+                display: inline-block;
+                background-color: #4285F4;
+                color: white;
+                padding: 8px 16px;
+                text-decoration: none;
+                border-radius: 4px;
+                font-weight: bold;
+                margin-bottom: 10px;
+            ">📍 Googleマップで見る</a>
+            <p style="color:gray; font-size:12px; margin-top:5px;">
+                {address_text}
+            </p>
+            """,
+            unsafe_allow_html=True
+        )
 
 else:
     msg = (
