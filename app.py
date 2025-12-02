@@ -31,21 +31,28 @@ def get_services():
         'https://www.googleapis.com/auth/drive'
     ]
     
+    # ローカル
     if os.path.exists('secret.json'):
         creds = Credentials.from_service_account_file('secret.json', scopes=scopes)
+    # クラウド
     elif "gcp_service_account" in st.secrets:
         try:
+            # Secretsを辞書として取得
             key_dict = dict(st.secrets["gcp_service_account"])
+            
+            # 改行コードの修正
             if "private_key" in key_dict:
                 key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
+            
             creds = Credentials.from_service_account_info(key_dict, scopes=scopes)
         except Exception as e:
-            st.error(f"認証エラー: {e}")
+            st.error(f"認証情報の読み込みエラー: {e}")
             st.stop()
     else:
-        st.error("鍵なし")
+        st.error("Secretsが見つかりません。[gcp_service_account]の設定を確認してください。")
         st.stop()
     
+    # クライアント作成
     client = gspread.authorize(creds)
     sheet = client.open("travel_db")
     drive = build('drive', 'v3', credentials=creds)
@@ -65,7 +72,7 @@ try:
         master_sheet = sheet_file.add_worksheet(title="spots_master", rows="100", cols="3")
         master_sheet.append_row(["観光地", "都道府県", "ジャンル"])
 except Exception as e:
-    # エラーの詳細を画面に出すように変更
+    # 詳細なエラーを表示
     st.error(f"詳細エラー: {e}")
     st.stop()
 
@@ -82,7 +89,6 @@ df_photo = pd.DataFrame(photo_records) if photo_records else pd.DataFrame(column
 # サイドバー
 with st.sidebar:
     st.title("🔍 VOYAGO Menu")
-    st.caption("▼ 観光地を探す")
     search_mode = st.radio("モード", ["都道府県", "ジャンル", "キーワード"])
     filtered_spots = []
     
@@ -109,7 +115,6 @@ with st.sidebar:
             filtered_spots = df_master[mask]["観光地"].tolist()
             
     st.markdown("---")
-    st.caption("▼ 場所を追加")
     with st.expander("➕ 登録フォーム"):
         with st.form("reg"):
             n_name = st.text_input("名前")
@@ -133,16 +138,17 @@ st.markdown("##### みんなで作る観光マップ")
 
 with st.expander("❓ VOYAGOについて"):
     st.markdown("""
-    <small style="color:gray;">
-    みんなの投票と写真で作る、新しい観光地マップです。<br>
-    <b>📝 タグ評価</b>： 特徴をボタンで投票<br>
-    <b>📸 アルバム</b>： リアルな写真を共有<br>
-    <b>🗺️ 登録</b>： 隠れた名所を自由に登録
-    </small>
-    """, unsafe_allow_html=True)
+    **「みんなでつくる、最高の旅のしおり。」**
+    VOYAGOは、旅行者みんなのリアルな声で作り上げる、新しい観光地マップです。
+    **👑 3つの特徴**
+    1. **📝 タグ評価**: 「デート向き」「コスパ良」などのボタンで投票。
+    2. **📸 アルバム**: 訪れた人が撮影したリアルな写真を共有。
+    3. **🗺️ 地図を広げる**: 隠れた名所を誰でも新しく登録できます。
+    """)
 
 st.write("---")
 
+# ガード節
 if len(filtered_spots) == 0:
     st.info("👈 左側のメニューから検索するか、新規登録してください。")
     try:
