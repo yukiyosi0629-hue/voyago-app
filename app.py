@@ -14,7 +14,7 @@ import urllib.parse
 # ====================
 # 🛑 フォルダID
 # ====================
-DRIVE_FOLDER_ID = "1aOyupGCVBxKFx4G58LjfzTH4KwCesx7E"
+DRIVE_FOLDER_ID = "1Tv342SterGVXuOwiH-aKyO4tOW6OPjgp"
 
 # ====================
 # 設定
