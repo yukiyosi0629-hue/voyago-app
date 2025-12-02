@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials # ← 新しい認証ライブラリ
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import datetime
@@ -14,7 +14,7 @@ import urllib.parse
 # ====================
 # 🛑 フォルダID
 # ====================
-DRIVE_FOLDER_ID = "1Tv342SterGVXuOwiH-aKyO4tOW6OPjgp"
+DRIVE_FOLDER_ID = "1aOyupGCVBxKFx4G58LjfzTH4KwCesx7E"
 
 # ====================
 # 設定
@@ -23,18 +23,6 @@ st.set_page_config(
     page_title="VOYAGO",
     page_icon="icon.png", 
     layout="wide"
-)
-
-# CSS（文字サイズ調整）
-st.markdown(
-    """
-    <style>
-    .streamlit-expanderHeader p {
-        font-size: 14px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
 )
 
 # ====================
@@ -62,33 +50,36 @@ GENRES = [
 ]
 
 TAGS = [
-    "雨の日", "晴れの日", "アクセス良", "アクセス悪",
-    "デート", "子連れ", "大人向け", "コスパ良",
-    "贅沢", "景色良"
+    "雨の日", "晴れの日", "デート", "子連れ",
+    "静か", "賑やか", "コスパ良", "贅沢",
+    "景色良", "アクセス良", "アクセス悪", "アクティブ",
+    "大人向け"
 ]
 
 # ====================
-# データベース接続
+# データベース接続（最新方式）
 # ====================
 @st.cache_resource
 def get_services():
-    scope = [
-        'https://spreadsheets.google.com/feeds',
+    # スコープも最新のものに変更
+    scopes = [
+        'https://www.googleapis.com/auth/spreadsheets',
         'https://www.googleapis.com/auth/drive'
     ]
     
     if os.path.exists('secret.json'):
-        creds = ServiceAccountCredentials.from_json_keyfile_name(
-            'secret.json', scope
+        creds = Credentials.from_service_account_file(
+            'secret.json', scopes=scopes
         )
     elif "gcp_service_account" in st.secrets:
         try:
             key_dict = dict(st.secrets["gcp_service_account"])
+            # 改行コードの修正
             if "private_key" in key_dict:
-                pk = key_dict["private_key"]
-                key_dict["private_key"] = pk.replace("\\n", "\n")
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(
-                key_dict, scope
+                key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
+            
+            creds = Credentials.from_service_account_info(
+                key_dict, scopes=scopes
             )
         except Exception as e:
             st.error(f"認証エラー: {e}")
@@ -251,41 +242,43 @@ if len(filtered_spots) > 0:
         filtered_spots
     )
     
-    # 画面分割
+    # Googleマップ
+    encoded_name = urllib.parse.quote(spot_name)
+    gmap_url = f"https://www.google.com/maps/search/?api=1&query={encoded_name}"
+    
+    st.markdown(
+        f"""
+        <a href="{gmap_url}" target="_blank" style="
+            display: inline-block;
+            background-color: #4285F4;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        ">📍 Googleマップで見る</a>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # 住所
+    try:
+        ua = f"voyago_{int(time.time())}"
+        geolocator = Nominatim(user_agent=ua, timeout=5)
+        location = geolocator.geocode(spot_name)
+        if location:
+            st.caption(f"住所目安: {location.address}")
+    except:
+        pass
+    
+    st.write("---")
+
     col_main, col_side = st.columns([2, 1])
 
     # === 左側 ===
     with col_main:
-        encoded_name = urllib.parse.quote(spot_name)
-        gmap_url = f"https://www.google.com/maps/search/?api=1&query={encoded_name}"
-        
-        st.markdown(
-            f"""
-            <a href="{gmap_url}" target="_blank" style="
-                display: inline-block;
-                background-color: #4285F4;
-                color: white;
-                padding: 8px 16px;
-                text-decoration: none;
-                border-radius: 4px;
-                font-weight: bold;
-                margin-bottom: 10px;
-            ">📍 Googleマップで見る</a>
-            """,
-            unsafe_allow_html=True
-        )
-
-        try:
-            ua = f"voyago_{int(time.time())}"
-            geolocator = Nominatim(user_agent=ua, timeout=5)
-            location = geolocator.geocode(spot_name)
-            if location:
-                st.caption(f"住所目安: {location.address}")
-        except:
-            pass
-        
-        st.write("---")
-
+        # 写真一覧
         mask = df_photo["観光地"] == spot_name
         imgs = df_photo[mask]["画像URL"].tolist()
         
@@ -299,6 +292,7 @@ if len(filtered_spots) > 0:
         else:
             st.info("写真なし")
 
+        # 投稿フォーム
         with st.expander("📸 写真を追加する"):
             tab1, tab2 = st.tabs(["📁 アップロード", "🔗 URL貼り付け"])
             
@@ -395,7 +389,6 @@ if len(filtered_spots) > 0:
                     st.rerun()
 
 else:
-    # ここが修正箇所です
     st.info("👈 左側のメニューから検索するか、新規登録してください。")
     try:
         st.image("icon.png", width=100)
