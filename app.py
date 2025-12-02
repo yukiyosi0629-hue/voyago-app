@@ -11,9 +11,10 @@ import os
 import altair as alt
 import urllib.parse
 
-# 🛑 フォルダID (確認したいID)
+# フォルダID
 DRIVE_FOLDER_ID = "1Tv342SterGVXuOwiH-aKyO4tOW6OPjgp"
 
+# 設定
 st.set_page_config(page_title="VOYAGO", page_icon="icon.png", layout="wide")
 st.markdown("""<style>.streamlit-expanderHeader p {font-size: 14px;}</style>""", unsafe_allow_html=True)
 
@@ -21,7 +22,6 @@ st.markdown("""<style>.streamlit-expanderHeader p {font-size: 14px;}</style>""",
 @st.cache_resource
 def get_services():
     scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-    
     if os.path.exists('secret.json'):
         creds = Credentials.from_service_account_file('secret.json', scopes=scopes)
     elif "gcp_service_account" in st.secrets:
@@ -37,17 +37,11 @@ def get_services():
         st.error("鍵なし")
         st.stop()
     
-    # ★ここが診断用のコードです！★
-    # ロボットのメールアドレスを画面に強制表示します
-    st.sidebar.error("⚠️ 診断モード")
-    st.sidebar.warning(f"招待すべきアドレス:\n{creds.service_account_email}")
-    
     client = gspread.authorize(creds)
     sheet = client.open("travel_db")
     drive = build('drive', 'v3', credentials=creds)
     return sheet, drive
 
-# --- 以下は通常通りの処理 ---
 try:
     sheet_file, drive_service = get_services()
     vote_sheet = sheet_file.sheet1
@@ -123,13 +117,15 @@ with st.sidebar:
                 else:
                     st.error("未入力")
 
-# メイン
+# メイン画面
 st.markdown("# VOYAGO <small>(ボヤゴ)</small>", unsafe_allow_html=True)
 st.markdown("##### みんなで作る観光マップ")
 with st.expander("❓ VOYAGOについて"):
     st.markdown("""<small style="color:gray;">みんなの投票と写真で作る、新しい観光地マップです。<br><b>📝 タグ評価</b>： 特徴をボタンで投票<br><b>📸 アルバム</b>： リアルな写真を共有<br><b>🗺️ 登録</b>： 隠れた名所を自由に登録</small>""", unsafe_allow_html=True)
 st.write("---")
 
+# === ガード節（ここが重要） ===
+# データがない場合はメッセージを出してプログラムを終了させる
 if len(filtered_spots) == 0:
     st.info("👈 左側のメニューから検索するか、新規登録してください。")
     try:
@@ -138,17 +134,19 @@ if len(filtered_spots) == 0:
         pass
     st.stop()
 
+# === 以下、データがある場合の処理 ===
 spot_name = st.selectbox("📍 観光地を選択してください", filtered_spots)
 enc_name = urllib.parse.quote(spot_name)
 gmap_url = f"https://www.google.com/maps/search/?api=1&query={enc_name}"
 
 col1, col2 = st.columns([2, 1])
 
+# 左カラム
 with col1:
     st.markdown(f"""<a href="{gmap_url}" target="_blank" style="display:inline-block;background-color:#4285F4;color:white;padding:8px 16px;text-decoration:none;border-radius:4px;font-weight:bold;margin-bottom:10px;">📍 Googleマップで見る</a>""", unsafe_allow_html=True)
     try:
         ua = f"voyago_{int(time.time())}"
-        geolocator = Nominatim(user_agent=ua, timeout=5)
+        geolocator = Nominatim(user_agent=ua, timeout=10)
         loc = geolocator.geocode(spot_name)
         if loc:
             st.caption(f"住所目安: {loc.address}")
@@ -188,6 +186,7 @@ with col1:
                 st.success("完了")
                 st.rerun()
 
+# 右カラム
 with col2:
     st.subheader("📊 評価")
     mask_v = df_vote["観光地"] == spot_name
