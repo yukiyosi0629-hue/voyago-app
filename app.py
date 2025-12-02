@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials # ← 新しい認証ライブラリ
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import datetime
@@ -49,19 +49,26 @@ TAGS = [
 ]
 
 # ====================
-# データベース接続
+# データベース接続（最新方式）
 # ====================
 @st.cache_resource
 def get_services():
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    # スコープも最新のものに変更
+    scopes = [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive'
+    ]
+    
     if os.path.exists('secret.json'):
-        creds = ServiceAccountCredentials.from_json_keyfile_name('secret.json', scope)
+        creds = Credentials.from_service_account_file('secret.json', scopes=scopes)
     elif "gcp_service_account" in st.secrets:
         try:
             key_dict = dict(st.secrets["gcp_service_account"])
+            # 改行コードの修正
             if "private_key" in key_dict:
                 key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
+            
+            creds = Credentials.from_service_account_info(key_dict, scopes=scopes)
         except Exception as e:
             st.error(f"認証エラー: {e}")
             st.stop()
@@ -181,16 +188,14 @@ with st.expander("❓ VOYAGOについて"):
 
 st.write("---")
 
-# ★ここが変更点！if-elseを使わずに、無ければここで終わらせる（ガード節）
 if len(filtered_spots) == 0:
     st.info("👈 左側のメニューから検索するか、新規登録してください。")
     try:
         st.image("icon.png", width=100)
     except:
         pass
-    st.stop() # ここでプログラムを止める（以降のコードは実行されない）
+    st.stop()
 
-# ▼ ここから先は「場所が選ばれている時」だけ動く（字下げ不要！）
 spot_name = st.selectbox("📍 観光地を選択してください", filtered_spots)
 
 encoded_name = urllib.parse.quote(spot_name)
@@ -200,7 +205,6 @@ col_main, col_side = st.columns([2, 1])
 
 # === 左側（マップ・住所・写真） ===
 with col_main:
-    # マップリンク
     st.markdown(f"""
         <a href="{gmap_url}" target="_blank" style="
             display: inline-block; background-color: #4285F4; color: white;
@@ -209,10 +213,9 @@ with col_main:
         ">📍 Googleマップで見る</a>
         """, unsafe_allow_html=True)
 
-    # 住所取得
     try:
         ua = f"voyago_{int(time.time())}"
-        geolocator = Nominatim(user_agent=ua, timeout=5)
+        geolocator = Nominatim(user_agent=ua, timeout=10)
         location = geolocator.geocode(spot_name)
         if location:
             st.caption(f"住所目安: {location.address}")
@@ -221,7 +224,6 @@ with col_main:
     
     st.write("---")
 
-    # アルバム
     mask = df_photo["観光地"] == spot_name
     imgs = df_photo[mask]["画像URL"].tolist()
     
@@ -233,7 +235,6 @@ with col_main:
     else:
         st.info("写真なし")
 
-    # 投稿フォーム
     with st.expander("📸 写真を追加する"):
         tab1, tab2 = st.tabs(["📁 アップロード", "🔗 URL貼り付け"])
         
