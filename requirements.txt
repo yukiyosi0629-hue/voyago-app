@@ -1,6 +1,6 @@
 streamlit
 pandas
-gspread==6.0.0
+gspread==5.10.0
 google-auth
 google-api-python-client
 geopy
