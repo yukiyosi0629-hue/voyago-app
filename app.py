@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials # ← 新しい認証ライブラリ
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import datetime
@@ -12,14 +12,18 @@ import altair as alt
 import urllib.parse
 
 # ====================
-# 🛑 フォルダID (修正済み)
+# 🛑 フォルダID
 # ====================
 DRIVE_FOLDER_ID = "1Tv342SterGVXuOwiH-aKyO4tOW6OPjgp"
 
 # ====================
 # 設定
 # ====================
-st.set_page_config(page_title="VOYAGO", page_icon="icon.png", layout="wide")
+st.set_page_config(
+    page_title="VOYAGO",
+    page_icon="icon.png", 
+    layout="wide"
+)
 
 # CSS
 st.markdown("""<style>.streamlit-expanderHeader p {font-size: 14px;}</style>""", unsafe_allow_html=True)
@@ -55,20 +59,30 @@ TAGS = [
 ]
 
 # ====================
-# データベース接続
+# データベース接続（最新方式）
 # ====================
 @st.cache_resource
 def get_services():
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    # スコープも最新のものに変更
+    scopes = [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive'
+    ]
     
     if os.path.exists('secret.json'):
-        creds = ServiceAccountCredentials.from_json_keyfile_name('secret.json', scope)
+        creds = Credentials.from_service_account_file(
+            'secret.json', scopes=scopes
+        )
     elif "gcp_service_account" in st.secrets:
         try:
             key_dict = dict(st.secrets["gcp_service_account"])
+            # 改行コードの修正
             if "private_key" in key_dict:
                 key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
+            
+            creds = Credentials.from_service_account_info(
+                key_dict, scopes=scopes
+            )
         except Exception as e:
             st.error(f"認証エラー: {e}")
             st.stop()
@@ -88,13 +102,17 @@ try:
     try:
         photo_sheet = sheet_file.worksheet("photos")
     except:
-        photo_sheet = sheet_file.add_worksheet(title="photos", rows="100", cols="3")
+        photo_sheet = sheet_file.add_worksheet(
+            title="photos", rows="100", cols="3"
+        )
         photo_sheet.append_row(["観光地", "画像URL", "投稿日時"])
 
     try:
         master_sheet = sheet_file.worksheet("spots_master")
     except:
-        master_sheet = sheet_file.add_worksheet(title="spots_master", rows="100", cols="3")
+        master_sheet = sheet_file.add_worksheet(
+            title="spots_master", rows="100", cols="3"
+        )
         master_sheet.append_row(["観光地", "都道府県", "ジャンル"])
 
 except Exception as e:
@@ -108,19 +126,22 @@ master_records = master_sheet.get_all_records()
 if master_records:
     df_master = pd.DataFrame(master_records)
 else:
-    df_master = pd.DataFrame(columns=["観光地", "都道府県", "ジャンル"])
+    cols = ["観光地", "都道府県", "ジャンル"]
+    df_master = pd.DataFrame(columns=cols)
 
 vote_records = vote_sheet.get_all_records()
 if vote_records:
     df_vote = pd.DataFrame(vote_records)
 else:
-    df_vote = pd.DataFrame(columns=["観光地", "特徴", "投票数"])
+    cols = ["観光地", "特徴", "投票数"]
+    df_vote = pd.DataFrame(columns=cols)
 
 photo_records = photo_sheet.get_all_records()
 if photo_records:
     df_photo = pd.DataFrame(photo_records)
 else:
-    df_photo = pd.DataFrame(columns=["観光地", "画像URL"])
+    cols = ["観光地", "画像URL"]
+    df_photo = pd.DataFrame(columns=cols)
 
 
 # ====================
@@ -130,7 +151,10 @@ with st.sidebar:
     st.title("🔍 VOYAGO Menu")
     
     st.caption("▼ 観光地を探す")
-    search_mode = st.radio("モード", ["都道府県", "ジャンル", "キーワード"])
+    search_mode = st.radio(
+        "モード",
+        ["都道府県", "ジャンル", "キーワード"]
+    )
     filtered_spots = []
 
     if search_mode == "都道府県":
